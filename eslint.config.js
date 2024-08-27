@@ -1,4 +1,6 @@
-// @ts-check
-import { defineConfig } from 'eslint-config-hyoban'
+import antfu from '@antfu/eslint-config'
 
-export default defineConfig()
+export default antfu({
+  react: true,
+  typescript: true,
+})
