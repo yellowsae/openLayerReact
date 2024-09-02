@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import Map from './Map/Index'
 import type { MapType } from './Map/types'
+import { MapTypeEnum } from './Map/types'
 import Cesium from './Cesium'
 
 function App() {
@@ -24,10 +25,10 @@ function App() {
     <div className="relative w-full h-screen">
       {map}
       <div className="absolute top-2 right-2">
-        <button type="button" className="btn  btn-neutral" onClick={() => handleType('point')}>点</button>
-        <button type="button" className="btn  mx-2 btn-primary" onClick={() => handleType('line')}>线</button>
-        <button type="button" className="btn   btn-secondary" onClick={() => handleType('polygon')}>面</button>
-        <button type="button" className="btn   btn-accent" onClick={() => handleType('3d')}>3D</button>
+        <button type="button" className="btn  btn-neutral" onClick={() => handleType(MapTypeEnum.Point)}>点</button>
+        <button type="button" className="btn  mx-2 btn-primary" onClick={() => handleType(MapTypeEnum.LineString)}>线</button>
+        <button type="button" className="btn   btn-secondary" onClick={() => handleType(MapTypeEnum.Polygon)}>面</button>
+        <button type="button" className="btn   btn-accent" onClick={() => handleType(MapTypeEnum.ThreeD)}>3D</button>
       </div>
     </div>
   )

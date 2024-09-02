@@ -17,6 +17,9 @@ importers:
       eslint:
         specifier: ^9.9.1
         version: 9.9.1(jiti@1.21.6)
+      ol-ext:
+        specifier: 4.0.2
+        version: 4.0.2(ol@10.1.0)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -2289,6 +2292,11 @@ packages:
   object-hash@3.0.0:
     resolution: {integrity: sha512-RSn9F68PjH9HqtltsSnqYC1XXoWe9Bju5+213R98cNGttag9q9yAOTzdbsqvIa7aNm5WffBZFpWYr2aWrklWAw==}
     engines: {node: '>= 6'}
+
+  ol-ext@4.0.2:
+    resolution: {integrity: sha512-MoY23Bhv/5WUSXMVK6Iej7hM1ZDh4bCqIRHnzldOmWfMV02kKQjq5V5C+Zl3wCYGSMUfC0dGbcQBHPJ/vCuIeQ==}
+    peerDependencies:
+      ol: '>= 5.3.0'
 
   ol@10.1.0:
     resolution: {integrity: sha512-/efepydpzhFoeczA9KAN5t7G0WpFhP46ZXEfSl6JbZ7ipQZ2axpkYB2qt0qcOUlPFYMt7/XQFApH652KB08tTg==}
@@ -5399,6 +5407,10 @@ snapshots:
   object-assign@4.1.1: {}
 
   object-hash@3.0.0: {}
+
+  ol-ext@4.0.2(ol@10.1.0):
+    dependencies:
+      ol: 10.1.0
 
   ol@10.1.0:
     dependencies:

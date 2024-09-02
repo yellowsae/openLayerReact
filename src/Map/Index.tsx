@@ -1,16 +1,15 @@
 import { useEffect, useRef } from 'react'
 
-import type { MapBrowserEvent } from 'ol'
 import { Feature, Map as OlMap, Overlay, View } from 'ol'
 import TileLayer from 'ol/layer/Tile'
-import { Cluster, XYZ } from 'ol/source'
+import { Cluster, Vector, XYZ } from 'ol/source'
 import { defaults } from 'ol/control'
 
 // type
 import VectorSource from 'ol/source/Vector'
 import VectorLayer from 'ol/layer/Vector'
 import type { Geometry } from 'ol/geom'
-import { Point } from 'ol/geom'
+import { LineString, Point } from 'ol/geom'
 import Style from 'ol/style/Style'
 import { Circle as CircleStyle } from 'ol/style'
 import Icon from 'ol/style/Icon'
@@ -19,12 +18,16 @@ import Fill from 'ol/style/Fill'
 import Stroke from 'ol/style/Stroke'
 import type { DrawEvent } from 'ol/interaction/Draw'
 import Draw from 'ol/interaction/Draw'
-
+import type { Coordinate } from 'ol/coordinate'
+import AnimatedCluster from 'ol-ext/layer/AnimatedCluster'
 import type BaseEvent from 'ol/events/Event'
 import { transform } from 'ol/proj'
-import Del2 from '../assets/Del2.png'
-import pointPng from '../assets/iconPoints.png'
+
+import Del2 from '../assets/Del2.svg'
+import pointPng from '../assets/points.svg'
 import type { MapProps, MapType } from './types'
+import { MapTypeEnum } from './types'
+import markerStyle from './markStyle'
 
 function Map({ type, changeType }: MapProps) {
   const mapRef = useRef<OlMap | null>(null)
@@ -85,17 +88,23 @@ function Map({ type, changeType }: MapProps) {
   // 标记点的数据渲染
   const clusterPondSourcePoints: Cluster<Feature> = new Cluster({
     distance: 40,
-    source: new VectorSource(),
+    source: new Vector(),
   })
 
   // 标记点图层
-  const MarkingPoints = new VectorLayer({
+  const clusterLayer = new AnimatedCluster({
     source: clusterPondSourcePoints,
+    animationDuration: 1000,
     style: new Style({
       image: new Icon({
+        anchor: [0.5, 24],
+        anchorOrigin: 'top-right',
+        anchorXUnits: 'fraction',
+        anchorYUnits: 'pixels',
+        offsetOrigin: 'top-right',
+        opacity: 1,
         // 使用 svg
         src: pointPng,
-        // jsx
       }),
     }),
   })
@@ -113,7 +122,7 @@ function Map({ type, changeType }: MapProps) {
   })
 
   // 添加图层
-  mapRef.current?.addLayer(MarkingPoints)
+  mapRef.current?.addLayer(clusterLayer)
   mapRef.current?.addLayer(MarkingLines)
 
   // 地图相关绘制信息
@@ -132,23 +141,18 @@ function Map({ type, changeType }: MapProps) {
   let feature: Feature<Geometry> | null = null // 坐标
   let drawVector: Draw | null = null! // 画布
   let listener: any = null // 监听鼠标位置改变
-
-  const draw = (type: MapType) => {
-    if (type === 'none')
+  // 标记线
+  let layerLines = 0
+  // 绘制开始
+  const distance = (type: MapType) => {
+    if (type === MapTypeEnum.None || type === MapTypeEnum.ThreeD)
       return
-
-    if (type === 'point') {
+    if (type === MapTypeEnum.Point) {
       // 加左键点击方法
       mapRef.current?.on('click', markerHandlePoints)
-      // 加右键点击方法
-      mapRef.current?.getViewport().addEventListener('contextmenu', rightClickMakerHandler)
-
       markerIconLayer = new VectorLayer({
         source: new VectorSource(),
       })
-      // 添加图层
-      mapRef.current?.addLayer(markerIconLayer)
-
       const pointerMove = (evt: any) => {
         if (evt.dragging) {
           return
@@ -157,7 +161,7 @@ function Map({ type, changeType }: MapProps) {
         helpTooltip!.setPosition(evt.coordinate)
         helpTooltipElement!.classList.remove('hidden')
       }
-
+      mapRef.current?.addLayer(markerIconLayer)
       // 创建鼠标移动事件
       mapMouseMove = mapRef.current?.on('pointermove', pointerMove)
 
@@ -173,94 +177,129 @@ function Map({ type, changeType }: MapProps) {
         mapRef.current?.un('pointermove', pointerMove)
         mapRef.current?.un('click', markerHandlePoints)
         mapRef.current?.getViewport().removeEventListener('contextmenu', rightClickMaker)
+        mapRef.current?.removeInteraction(drawVector as Draw)
         unByKey(mapMouseMove)
         helpTooltipElement?.parentNode?.removeChild(helpTooltipElement)
+        drawVector = null
+        feature = null
       }
       // 创建私有的右键方法
       mapRef.current?.getViewport().addEventListener('contextmenu', rightClickMaker)
     }
-    else if (type === 'line') {
-      // 绘制线相关
-      // 添加点击左键事件
-      mapRef.current?.on('click', lineHandlePoints)
+    else {
+      // 绘制线相关 & 面
       // 添加右键事件
       mapRef.current?.getViewport().addEventListener('contextmenu', rightClickMakerHandler)
-
-      // 鼠标移动事件
-      const pointerMoveHandler = (e: any) => {
-        if (e.dragging) {
-          return
-        }
-        let helpMsg = '左键确定地点,右键退出'
-        if (feature) {
-          helpMsg = '双击左键结束测量'
-        }
-        helpTooltipElement!.innerHTML = helpMsg
-        helpTooltip!.setPosition(e.coordinate)
-        helpTooltipElement!.classList.remove('hidden')
-      }
-
       // 创建鼠标移动事件
       mapMouseMove = mapRef.current?.on('pointermove', pointerMoveHandler)
+      // 移除标记点相关
+      mapRef.current?.un('click', markerHandlePoints)
+    }
 
-      // 添加标记线 保存的样式 图层
-      const layer = new VectorLayer({
-        source: new VectorSource(),
-        style: new Style({
-          fill: new Fill({ color: 'rgba(45,140,240,0.2)' }),
-          stroke: new Stroke({
-            color: '#2D8CF0',
-            width: 2,
-          }),
-          image: new CircleStyle({
-            radius: 7,
-            fill: new Fill({ color: '#ff211a' }),
-          }),
+    // 初始化绘制线相关 & 面
+    if (drawVector) {
+      mapRef.current?.removeInteraction(drawVector)
+    }
+    // 添加标记线 保存的样式 图层
+    const layer = new VectorLayer({
+      source: new VectorSource(),
+      style: new Style({
+        fill: new Fill({ color: 'rgba(45,140,240,0.2)' }),
+        stroke: new Stroke({
+          color: '#2D8CF0',
+          width: 2,
         }),
+        image: new CircleStyle({
+          radius: 7,
+          fill: new Fill({ color: '#ff211a' }),
+        }),
+      }),
+    })
+
+    mapRef.current?.getViewport().addEventListener('mouseout', () => {
+      helpTooltipElement?.classList.add('hidden')
+    })
+
+    // 创建绘制线方法
+    drawVector = new Draw({
+      source: new VectorSource(),
+      type: 'LineString', // 绘制类型
+      style: new Style({
+        fill: new Fill({ color: 'rgba(45,140,240,0.2)' }),
+        stroke: new Stroke({
+          color: '#2D8CF0',
+          lineDash: [],
+          width: 2,
+        }),
+        image: new CircleStyle({
+          radius: 5,
+          stroke: new Stroke({ color: '#2D8CF0' }),
+          fill: new Fill({ color: 'rgba(255, 255, 255, 0.2)' }),
+        }),
+      }),
+    })
+
+    drawVector.on('drawstart', (evt: DrawEvent) => {
+      mapRef.current?.getViewport().addEventListener('contextmenu', rightClickMakerHandler)
+      feature = evt.feature
+      layerLines++
+      let tooltipCoord: Coordinate = [0, 0]
+      listener = feature.getGeometry()?.on('change', (evt: BaseEvent) => {
+        const geom = evt.target
+        const imgEL: string = `<img src=${Del2} class="deleteLine" PLP="ture" id="tooltip-close-btn_${layerLines}" tempimgdata="${layerLines}"/>`
+        if (geom instanceof LineString) {
+          tooltipCoord = geom.getLastCoordinate()
+          measureTooltipElement!.innerHTML = `未命名路径${imgEL}`
+        }
+        measureTooltip.setPosition(tooltipCoord)
       })
+    })
+
+    drawVector.on('drawend', (evt: DrawEvent) => {
+      mapRef.current?.getViewport().removeEventListener('contextmenu', rightClickMakerHandler)
+      evt.feature.set('tempData', layerLines)
+      const coordinate: Coordinate[] = []
+      const geom = evt.target
+      if (geom.type_ === 'LineString') {
+        const lineString = evt.feature.getGeometry() as LineString
+        lineString.getCoordinates().forEach((item: Coordinate) => {
+          coordinate.push(transform(item, 'EPSG:3857', 'EPSG:4326'))
+        })
+      }
+      if (type === MapTypeEnum.Point) {
+        return
+      }
+      measureTooltipElement!.className = 'ol-tooltip ol-tooltip-static'
+      measureTooltip.setOffset([0, -7])
+      feature = null
+      measureTooltipElement = null
+      createMeasureTooltip()
+      unByKey(listener)
+      document.querySelector(`#tooltip-close-btn_${layerLines}`)?.addEventListener('click', deleteClick)
+    })
+
+    if (type !== MapTypeEnum.Point) {
       mapRef.current?.addLayer(layer)
-
-      // 创建绘制线方法
-      drawVector = new Draw({
-        source: new VectorSource(),
-        type: 'LineString',
-        style: new Style({
-          fill: new Fill({ color: 'rgba(45,140,240,0.2)' }),
-          stroke: new Stroke({
-            color: '#2D8CF0',
-            lineDash: [],
-            width: 2,
-          }),
-          image: new CircleStyle({
-            radius: 5,
-            stroke: new Stroke({ color: 'rgba(216,20,7, 0.7)' }),
-            fill: new Fill({ color: 'rgba(255, 255, 255, 0.2)' }),
-          }),
-        }),
-      })
-
       // 添加绘制线方法
       mapRef.current?.addInteraction(drawVector)
-
-      mapRef.current?.getViewport().addEventListener('mouseout', () => {
-        helpTooltipElement?.classList.add('hidden')
-      })
     }
     // 创建提示div DOM
-    createHelpTooltip2()
+    createHelpTooltip()
+    createMeasureTooltip()
   }
 
   useEffect(() => {
-    draw(type)
+    distance(type)
   }, [type])
 
   /** 创建div DOM 开始 */
   // 创建标记点div
-  function createHelpTooltip1() {
+  function createMeasureTooltip() {
     if (measureTooltipElement) {
       measureTooltipElement.parentNode?.removeChild(measureTooltipElement)
     }
     measureTooltipElement = document.createElement('div')
+    measureTooltipElement.className = 'ol-tooltip ol-tooltip-measure'
     measureTooltip = new Overlay({
       element: measureTooltipElement,
       offset: [0, -15],
@@ -268,11 +307,12 @@ function Map({ type, changeType }: MapProps) {
       stopEvent: false,
       insertFirst: false,
     })
+    // drawElements.value.push(measureTooltip)
     mapRef.current?.addOverlay(measureTooltip)
   }
 
   // 鼠标显示内容div
-  function createHelpTooltip2() {
+  function createHelpTooltip() {
     if (helpTooltipElement) {
       helpTooltipElement.parentNode?.removeChild(helpTooltipElement)
     }
@@ -294,11 +334,13 @@ function Map({ type, changeType }: MapProps) {
     const newFeaturePoints = new Feature(new Point(e.coordinate))
     // 设置markId属性
     newFeaturePoints.set('markId', layerPoints)
+    newFeaturePoints.set('tempData', layerPoints)
+    newFeaturePoints.setStyle(markerStyle('#2D8CF0'))
     clusterPondSourcePoints.getSource()?.addFeature(newFeaturePoints)
     // 创建div
-    createHelpTooltip1()
+    createMeasureTooltip()
     // 定义div内容样式
-    measureTooltipElement!.innerHTML = '未命名地点' + `<img src=${Del2} class="deletePoint" PLP="ture" id="tooltip-close-btn_${layerPoints}" tempImgData="${layerPoints}"/>`
+    measureTooltipElement!.innerHTML = '未命名地点' + `<img src=${Del2}  class="deletePoint" PLP="ture" id="tooltip-close-btn_${layerPoints}" tempImgData="${layerPoints}"/>`
     measureTooltipElement!.className = 'ol-tooltip ol-tooltip-static '
     // 赋值坐标信息
     measureTooltip.setOffset([0.5, -38])
@@ -310,54 +352,6 @@ function Map({ type, changeType }: MapProps) {
     document.querySelector(`#tooltip-close-btn_${layerPoints}`)?.addEventListener('click', (e: Event) => deleteClick(e))
   }
 
-  // 标记线
-  let layerLines = 0
-  function lineHandlePoints(e: MapBrowserEvent<any>) {
-    drawVector?.on('drawstart', (evt: DrawEvent) => {
-      layerLines++
-      // console.log(evt)
-      // 获取feature
-      feature = evt.feature
-
-      // 标记点
-      createHelpTooltip1()
-
-      // 监听鼠标位置改变
-      listener = feature.getGeometry()?.on('change', (evt: BaseEvent) => {
-        const geom = evt.target.getCoordinates().pop()
-        measureTooltipElement!.innerHTML = '未命名路径' + `<img src=${Del2} class="deleteLine" PLP="ture" id="tooltip-close-btn_${layerLines}" tempImgData="${layerLines}"/>`
-        measureTooltip!.setPosition(geom)
-      })
-
-      // 创建 div
-      measureTooltip.setPosition(e.coordinate)
-    })
-
-    // 结束
-    drawVector?.on('drawend', (e: DrawEvent) => {
-      // 移除右键事件
-      mapRef.current?.getViewport().removeEventListener('contextmenu', rightClickMakerHandler)
-      e.feature.set('tempdata', layerLines)
-      const geom = e.target
-      const coordinate: any = []
-
-      if (geom.type_ === 'LineString') {
-        // e.feature.getGeometry()!.getCoordinates()!.forEach((item: any) => {
-        // coordinate.push(item)
-        geom.sketchCoords_.forEach((item: any) => {
-          coordinate.push(transform(item, 'EPSG:3857', 'EPSG:4326'))
-        })
-      }
-
-      measureTooltip.setOffset([0, -7])
-      // createHelpTooltip1()
-    })
-
-    // 清空改变状态
-    unByKey(listener)
-    // 删除绘制线
-    document.querySelector(`#tooltip-close-btn_${layerLines}`)?.addEventListener('click', deleteClick)
-  }
   /** 公共方法 开始 */
   // 右键 退出标记状态
   function rightClickMakerHandler() {
@@ -394,6 +388,19 @@ function Map({ type, changeType }: MapProps) {
         mapRef.current?.removeOverlay(overlay)
       }
     })
+  }
+  // 鼠标移动事件
+  function pointerMoveHandler(e: any) {
+    if (e.dragging) {
+      return
+    }
+    let helpMsg = '左键确定地点,右键退出'
+    if (feature) {
+      helpMsg = '双击左键结束'
+    }
+    helpTooltipElement!.innerHTML = helpMsg
+    helpTooltip!.setPosition(e.coordinate)
+    helpTooltipElement!.classList.remove('hidden')
   }
 
   return (
