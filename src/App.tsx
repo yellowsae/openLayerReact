@@ -21,6 +21,9 @@ function App() {
     }
   }, [type])
 
+  const MapViewChange = () => {
+  }
+
   return (
     <div className="relative w-full h-screen">
       {map}
@@ -29,6 +32,7 @@ function App() {
         <button type="button" className="btn  mx-2 btn-primary" onClick={() => handleType(MapTypeEnum.LineString)}>线</button>
         <button type="button" className="btn   btn-secondary" onClick={() => handleType(MapTypeEnum.Polygon)}>面</button>
         <button type="button" className="btn   btn-accent" onClick={() => handleType(MapTypeEnum.ThreeD)}>3D</button>
+        <button type="button" className="btn btn-info" onClick={() => MapViewChange()}>矢量图</button>
       </div>
     </div>
   )
