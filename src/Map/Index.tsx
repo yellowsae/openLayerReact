@@ -143,6 +143,7 @@ function Map({ type, changeType }: MapProps) {
   let listener: any = null // 监听鼠标位置改变
   // 标记线
   let layerLines = 0
+  const source: Vector = new VectorSource()
   // 绘制开始
   const distance = (type: MapType) => {
     if (type === MapTypeEnum.None || type === MapTypeEnum.ThreeD)
@@ -200,9 +201,10 @@ function Map({ type, changeType }: MapProps) {
     if (drawVector) {
       mapRef.current?.removeInteraction(drawVector)
     }
+
     // 添加标记线 保存的样式 图层
     const layer = new VectorLayer({
-      source: new VectorSource(),
+      source,
       style: new Style({
         fill: new Fill({ color: 'rgba(45,140,240,0.2)' }),
         stroke: new Stroke({
@@ -222,7 +224,7 @@ function Map({ type, changeType }: MapProps) {
 
     // 创建绘制线方法
     drawVector = new Draw({
-      source: new VectorSource(),
+      source,
       type: 'LineString', // 绘制类型
       style: new Style({
         fill: new Fill({ color: 'rgba(45,140,240,0.2)' }),
@@ -246,7 +248,7 @@ function Map({ type, changeType }: MapProps) {
       let tooltipCoord: Coordinate = [0, 0]
       listener = feature.getGeometry()?.on('change', (evt: BaseEvent) => {
         const geom = evt.target
-        const imgEL: string = `<img src=${Del2} class="deleteLine" PLP="ture" id="tooltip-close-btn_${layerLines}" tempimgdata="${layerLines}"/>`
+        const imgEL: string = `<img src=${Del2} class="deleteLine" PLP="ture" id="tooltip-close-btn_${layerLines}" tempImgData="${layerLines}"/>`
         if (geom instanceof LineString) {
           tooltipCoord = geom.getLastCoordinate()
           measureTooltipElement!.innerHTML = `未命名路径${imgEL}`
@@ -275,7 +277,7 @@ function Map({ type, changeType }: MapProps) {
       measureTooltipElement = null
       createMeasureTooltip()
       unByKey(listener)
-      document.querySelector(`#tooltip-close-btn_${layerLines}`)?.addEventListener('click', deleteClick)
+      document.querySelector(`#tooltip-close-btn_${layerLines}`)?.addEventListener('click', deleteLayers)
     })
 
     if (type !== MapTypeEnum.Point) {
@@ -372,7 +374,7 @@ function Map({ type, changeType }: MapProps) {
   // 删除标记点
   function deleteClick(e: Event) {
     const target = e.target as HTMLImageElement
-    const eIndex = target.getAttribute('tempImgData')
+    const eIndex = target.getAttribute('tempImgData')!
     // 循环图层 point 标记，删除对应的标记点
     clusterPondSourcePoints.getSource()?.getFeatures().forEach((feature: Feature) => {
       if (feature.get('markId') === Number(eIndex)) {
@@ -388,6 +390,27 @@ function Map({ type, changeType }: MapProps) {
         mapRef.current?.removeOverlay(overlay)
       }
     })
+  }
+
+  // 删除线
+  function deleteLayers(e: Event) {
+    const target = e.target as HTMLImageElement
+    const eIndex = target.getAttribute('tempImgData')!
+    const overlaysArr = mapRef.current?.getOverlays().getArray()
+    const deleteOverlayArr: Overlay[] = []
+    // 删除图层
+    for (const overlay of overlaysArr!) {
+      const lastChild: HTMLElement | null = overlay.getElement()?.lastChild as HTMLElement
+      if (lastChild?.id && lastChild?.getAttribute('tempImgData') === eIndex) {
+        deleteOverlayArr.push(overlay)
+      }
+    }
+    source.getFeatures().forEach((feature: Feature) => {
+      if (feature.get('tempData') === Number(eIndex)) {
+        source.removeFeature(feature)
+      }
+    })
+    deleteOverlayArr.forEach(n => mapRef.current?.removeOverlay(n))
   }
   // 鼠标移动事件
   function pointerMoveHandler(e: any) {
