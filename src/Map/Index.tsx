@@ -9,7 +9,7 @@ import { defaults } from 'ol/control'
 import VectorSource from 'ol/source/Vector'
 import VectorLayer from 'ol/layer/Vector'
 import type { Geometry } from 'ol/geom'
-import { LineString, Point } from 'ol/geom'
+import { LineString, Point, Polygon } from 'ol/geom'
 import Style from 'ol/style/Style'
 import { Circle as CircleStyle } from 'ol/style'
 import Icon from 'ol/style/Icon'
@@ -21,7 +21,6 @@ import Draw from 'ol/interaction/Draw'
 import type { Coordinate } from 'ol/coordinate'
 import AnimatedCluster from 'ol-ext/layer/AnimatedCluster'
 import type BaseEvent from 'ol/events/Event'
-import { transform } from 'ol/proj'
 
 import Del2 from '../assets/Del2.svg'
 import pointPng from '../assets/points.svg'
@@ -201,7 +200,6 @@ function Map({ type, changeType }: MapProps) {
     if (drawVector) {
       mapRef.current?.removeInteraction(drawVector)
     }
-
     // 添加标记线 保存的样式 图层
     const layer = new VectorLayer({
       source,
@@ -221,7 +219,6 @@ function Map({ type, changeType }: MapProps) {
     mapRef.current?.getViewport().addEventListener('mouseout', () => {
       helpTooltipElement?.classList.add('hidden')
     })
-
     // 创建绘制线方法
     drawVector = new Draw({
       source,
@@ -248,10 +245,14 @@ function Map({ type, changeType }: MapProps) {
       let tooltipCoord: Coordinate = [0, 0]
       listener = feature.getGeometry()?.on('change', (evt: BaseEvent) => {
         const geom = evt.target
-        const imgEL: string = `<img src=${Del2} class="deleteLine" PLP="ture" id="tooltip-close-btn_${layerLines}" tempImgData="${layerLines}"/>`
+        const imgEL: string = `<img src=${Del2} class="deleteLine" PLP="ture" style="width:25px;height:25px"  id="tooltip-close-btn_${layerLines}" tempImgData="${layerLines}"/>`
         if (geom instanceof LineString) {
           tooltipCoord = geom.getLastCoordinate()
           measureTooltipElement!.innerHTML = `未命名路径${imgEL}`
+        }
+        else if (geom instanceof Polygon) {
+          tooltipCoord = geom.getInteriorPoint().getCoordinates()
+          measureTooltipElement!.innerHTML = `未命名区域${imgEL}`
         }
         measureTooltip.setPosition(tooltipCoord)
       })
@@ -260,14 +261,6 @@ function Map({ type, changeType }: MapProps) {
     drawVector.on('drawend', (evt: DrawEvent) => {
       mapRef.current?.getViewport().removeEventListener('contextmenu', rightClickMakerHandler)
       evt.feature.set('tempData', layerLines)
-      const coordinate: Coordinate[] = []
-      const geom = evt.target
-      if (geom.type_ === 'LineString') {
-        const lineString = evt.feature.getGeometry() as LineString
-        lineString.getCoordinates().forEach((item: Coordinate) => {
-          coordinate.push(transform(item, 'EPSG:3857', 'EPSG:4326'))
-        })
-      }
       if (type === MapTypeEnum.Point) {
         return
       }
