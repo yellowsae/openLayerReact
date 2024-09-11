@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import type { Cartesian3, Ray as CesiumRay } from 'cesium'
-import { CesiumTerrainProvider, EntityCollection, Rectangle, ScreenSpaceEventHandler, ScreenSpaceEventType, Terrain, UrlTemplateImageryProvider, Viewer, WebMercatorTilingScheme } from 'cesium'
+import type { Cartesian3, Ray as CesiumRay, CesiumTerrainProvider, EntityCollection, Ion, Rectangle, ScreenSpaceEventHandler, ScreenSpaceEventType, Terrain, UrlTemplateImageryProvider, Viewer, WebMercatorTilingScheme } from 'cesium'
 
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 
@@ -28,6 +27,7 @@ function Cesium() {
     '2b3f3b33346110d0cebed4390dceaa9e',
   ]
   const token = tokens[Math.floor(Math.random() * tokens.length)]
+  Ion.defaultAccessToken = token
   // 服务域名
   const tdtUrl = 'https://t{s}.tianditu.gov.cn/'
   const subdomains = ['0', '1', '2', '3', '4', '5', '6', '7']
@@ -44,24 +44,30 @@ function Cesium() {
 
   function initCesium(extent: number[]) {
     viewer.current = new Viewer('cesiumContainer', {
-    //   imageryProviderViewModels: [
-    //     // new SingleTileImageryProvider({
-    //     //   url: 'data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==',
-    //     // }),
-    //     new ProviderViewModel({
-    //       name: 'cesium',
-    //       tooltip: 'cesium',
-    //       iconUrl: 'https://cesium.com/favicon.ico',
-    //       creationFunction: () => new SingleTileImageryProvider({
-    //         url: 'data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==',
-    //       }),
-    //     }),
-    //   ],
+      terrain: Terrain.fromWorldTerrain(),
+      // imageryProviderViewModels: [
+      //   // new SingleTileImageryProvider({
+      //   //   url: 'data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==',
+      //   // }),
+      //   new ProviderViewModel({
+      //     name: 'cesium',
+      //     tooltip: 'cesium',
+      //     iconUrl: 'https://cesium.com/favicon.ico',
+      //     creationFunction: () => new SingleTileImageryProvider({
+      //       url: 'data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==',
+      //     }),
+      //   }),
+      // ],
       contextOptions: {
         webgl: {
           alpha: true,
         },
       },
+
+      terrainProvider: new CesiumTerrainProvider({
+        requestVertexNormals: true,
+        requestWaterMask: true,
+      }),
       shouldAnimate: true,
       selectionIndicator: true, // 选中指示器
       animation: false, // 动画
